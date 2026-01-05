@@ -16,6 +16,8 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 add_library(hello_lib
     src/hello.cpp
     src/expression.cpp
+    src/distribution.cpp
+    src/variable_registry.cpp
 )
 
 # Main executable
@@ -43,6 +45,7 @@ FetchContent_MakeAvailable(googletest)
 add_executable(tests
     tests/test_expression.cpp
     tests/test_hello.cpp
+    tests/test_distribution.cpp
 )
 
 target_link_libraries(tests
