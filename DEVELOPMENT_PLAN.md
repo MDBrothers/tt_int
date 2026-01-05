@@ -484,6 +484,130 @@ auto result = evaluator.evaluate(expression, registry);
 // result.mean, result.stddev, result.samples available
 ```
 
+#### 3.3 Add Convergence Tracking ⏳
+
+**Files**: `include/monte_carlo_evaluator.h`, `src/monte_carlo_evaluator.cpp`, `tests/test_monte_carlo.cpp`
+
+**Objective**: Track how mean, standard deviation, and other statistics converge as more samples are accumulated.
+
+**Enhanced SimulationResult Structure**:
+
+```cpp
+struct ConvergencePoint {
+    size_t sampleCount;        ///< Number of samples at this point
+    double mean;               ///< Running mean at this point
+    double stddev;             ///< Running standard deviation at this point
+    size_t validCount;         ///< Valid (non-NaN) samples at this point
+};
+
+struct SimulationResult {
+    std::vector<double> samples;           ///< All samples including NaN values
+    double mean;                           ///< Final mean of valid samples
+    double stddev;                         ///< Final standard deviation
+    double min;                            ///< Minimum of valid samples
+    double max;                            ///< Maximum of valid samples
+    size_t validSampleCount;              ///< Number of non-NaN samples
+    size_t totalSampleCount;              ///< Total number of samples
+    std::vector<ConvergencePoint> convergenceHistory;  ///< Statistics at intervals
+};
+```
+
+**Implementation Details**:
+
+- Record statistics at regular intervals (e.g., every 100 samples, or logarithmic: 10, 100, 1000, etc.)
+- Use existing Welford's algorithm to compute running statistics efficiently
+- Option 1: Fixed interval (e.g., record every N samples)
+- Option 2: Logarithmic intervals (powers of 10: 10, 100, 1000, 10000)
+- Option 3: Percentage milestones (1%, 5%, 10%, 25%, 50%, 75%, 90%, 95%, 100%)
+- Add optional parameter to control granularity: `evaluate(expr, registry, recordInterval = 0)`
+  - `recordInterval = 0`: No convergence tracking (default, backward compatible)
+  - `recordInterval = 100`: Record every 100 samples
+  - `recordInterval = -1`: Use smart intervals (logarithmic or percentage-based)
+
+**API Enhancement**:
+
+```cpp
+class MonteCarloEvaluator {
+public:
+    // Existing constructor
+    MonteCarloEvaluator(size_t numSamples, 
+                       std::optional<unsigned> seed = std::nullopt);
+    
+    // Enhanced evaluate with convergence tracking
+    SimulationResult evaluate(std::shared_ptr<Expression> expr,
+                             const VariableRegistry& registry,
+                             int convergenceInterval = 0);
+    
+    // Helper to get smart intervals based on total samples
+    std::vector<size_t> computeConvergenceIntervals(size_t totalSamples) const;
+};
+```
+
+**Use Cases**:
+
+1. **Assess simulation quality**: See if statistics have stabilized
+2. **Determine optimal sample size**: Find when additional samples provide diminishing returns
+3. **Visualize convergence**: Plot mean/stddev vs. sample count
+4. **Early stopping**: Detect when simulation has converged sufficiently
+5. **Debugging**: Identify if specific variable ranges cause convergence issues
+
+**Testable Deliverables**:
+
+1. ⏳ `SimulationResult` contains `convergenceHistory` vector
+2. ⏳ With `convergenceInterval=0` (default), `convergenceHistory` is empty (backward compatible)
+3. ⏳ With `convergenceInterval=100`, history recorded every 100 samples
+4. ⏳ With `convergenceInterval=-1`, uses smart intervals (logarithmic)
+5. ⏳ Last entry in convergenceHistory matches final statistics
+6. ⏳ ConvergencePoint mean values show decreasing variance as sampleCount increases
+7. ⏳ For deterministic seed, convergenceHistory is reproducible
+8. ⏳ `TEST(MonteCarloTest, ConvergenceTracking)` - verifies history is populated
+9. ⏳ `TEST(MonteCarloTest, ConvergenceMonotonicity)` - standard error decreases
+10. ⏳ `TEST(MonteCarloTest, ConvergenceBackwardCompatible)` - default behavior unchanged
+11. ⏳ Convergence tracking adds minimal overhead (< 5% execution time)
+12. ⏳ Can access intermediate statistics: `result.convergenceHistory[i].mean`
+
+**Example Usage**:
+
+```cpp
+MonteCarloEvaluator evaluator(10000, 42);
+
+// Enable convergence tracking with smart intervals
+auto result = evaluator.evaluate(expr, registry, -1);
+
+// Analyze convergence
+std::cout << "Convergence Analysis:\n";
+for (const auto& point : result.convergenceHistory) {
+    std::cout << "After " << point.sampleCount << " samples: "
+              << "mean = " << point.mean 
+              << ", stddev = " << point.stddev << "\n";
+}
+
+// Check if simulation converged
+if (result.convergenceHistory.size() >= 2) {
+    auto& last = result.convergenceHistory.back();
+    auto& secondLast = result.convergenceHistory[result.convergenceHistory.size() - 2];
+    double meanChange = std::abs(last.mean - secondLast.mean);
+    if (meanChange < 0.01) {
+        std::cout << "Simulation converged!\n";
+    }
+}
+```
+
+**Smart Interval Strategy** (for `convergenceInterval = -1`):
+
+- For N samples, record at: 10, 100, 1000, ..., up to N
+- Or: 1%, 5%, 10%, 25%, 50%, 75%, 90%, 95%, 100%
+- Ensures ~log(N) data points regardless of total samples
+- Example for 10000 samples: [10, 100, 1000, 10000] or [100, 500, 1000, 2500, 5000, 7500, 9000, 9500, 10000]
+
+**Deliverable**: Access to convergence behavior for simulation introspection
+
+```cpp
+auto result = evaluator.evaluate(expr, registry, -1);
+// result.convergenceHistory shows how statistics evolved
+// Useful for determining if more samples are needed
+```
+
 ---
 
 ## Phase 4: Expression Builder API (Ergonomic Interface)
