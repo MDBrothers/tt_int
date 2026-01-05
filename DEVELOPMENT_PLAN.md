@@ -8,9 +8,10 @@
 
 - ✅ **Phase 1**: Core Expression Tree (14 tests passing)
 - ✅ **Phase 2**: Distribution System (17 tests passing)
-- ✅ **Phase 3**: Monte Carlo Evaluator (15 tests passing)
+- ✅ **Phase 3**: Monte Carlo Evaluator (23 tests passing)
+  - Includes convergence tracking & introspection (Task 3.3)
 
-**Total Tests**: 50 passing (14 expression + 4 hello + 17 distribution + 15 monte carlo)
+**Total Tests**: 58 passing (14 expression + 4 hello + 17 distribution + 23 monte carlo)
 
 **Implementation Status**:
 
@@ -18,6 +19,7 @@
 - ✅ Normal and Uniform distributions
 - ✅ Variable registry for stochastic variables
 - ✅ Monte Carlo evaluator with Welford's algorithm
+- ✅ Convergence tracking with smart intervals
 - ⏳ Expression builder API (next)
 - ⏳ Project integration (future)
 
@@ -484,7 +486,7 @@ auto result = evaluator.evaluate(expression, registry);
 // result.mean, result.stddev, result.samples available
 ```
 
-#### 3.3 Add Convergence Tracking ⏳
+#### 3.3 Add Convergence Tracking ✅
 
 **Files**: `include/monte_carlo_evaluator.h`, `src/monte_carlo_evaluator.cpp`, `tests/test_monte_carlo.cpp`
 
@@ -553,18 +555,23 @@ public:
 
 **Testable Deliverables**:
 
-1. ⏳ `SimulationResult` contains `convergenceHistory` vector
-2. ⏳ With `convergenceInterval=0` (default), `convergenceHistory` is empty (backward compatible)
-3. ⏳ With `convergenceInterval=100`, history recorded every 100 samples
-4. ⏳ With `convergenceInterval=-1`, uses smart intervals (logarithmic)
-5. ⏳ Last entry in convergenceHistory matches final statistics
-6. ⏳ ConvergencePoint mean values show decreasing variance as sampleCount increases
-7. ⏳ For deterministic seed, convergenceHistory is reproducible
-8. ⏳ `TEST(MonteCarloTest, ConvergenceTracking)` - verifies history is populated
-9. ⏳ `TEST(MonteCarloTest, ConvergenceMonotonicity)` - standard error decreases
-10. ⏳ `TEST(MonteCarloTest, ConvergenceBackwardCompatible)` - default behavior unchanged
-11. ⏳ Convergence tracking adds minimal overhead (< 5% execution time)
-12. ⏳ Can access intermediate statistics: `result.convergenceHistory[i].mean`
+1. ✅ `SimulationResult` contains `convergenceHistory` vector
+2. ✅ With `convergenceInterval=0` (default), `convergenceHistory` is empty (backward compatible)
+3. ✅ With `convergenceInterval=100`, history recorded every 100 samples
+4. ✅ With `convergenceInterval=-1`, uses smart intervals (logarithmic)
+5. ✅ Last entry in convergenceHistory matches final statistics
+6. ✅ ConvergencePoint mean values show decreasing variance as sampleCount increases
+7. ✅ For deterministic seed, convergenceHistory is reproducible
+8. ✅ `TEST(MonteCarloTest, ConvergenceBackwardCompatible)` - default behavior unchanged
+9. ✅ `TEST(MonteCarloTest, ConvergenceFixedInterval)` - fixed interval recording
+10. ✅ `TEST(MonteCarloTest, ConvergenceSmartIntervals)` - smart intervals work
+11. ✅ `TEST(MonteCarloTest, ConvergenceStandardErrorDecreases)` - SE decreases over time
+12. ✅ `TEST(MonteCarloTest, ConvergenceDeterministic)` - reproducible with seed
+13. ✅ `TEST(MonteCarloTest, ConvergenceWithNaN)` - handles NaN values correctly
+14. ✅ `TEST(MonteCarloTest, ConvergenceIncludesFinalCount)` - final count always included
+15. ✅ `TEST(MonteCarloTest, ConvergenceMeanStabilizes)` - mean stabilizes over time
+16. ✅ Convergence tracking adds minimal overhead (< 5% execution time)
+17. ✅ Can access intermediate statistics: `result.convergenceHistory[i].mean`
 
 **Example Usage**:
 
