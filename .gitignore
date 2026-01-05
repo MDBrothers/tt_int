@@ -36,7 +36,7 @@ out/
 *.x86_64
 *.hex
 tt_int
-tests
+/tests
 
 # Debug files
 *.dSYM/
@@ -55,7 +55,7 @@ _deps/
 Testing/
 
 # IDE specific
-.vscode/
+# .vscode/ - keep for project setup
 .idea/
 *.swp
 *.swo
