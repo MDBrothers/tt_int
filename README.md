@@ -100,3 +100,4 @@ See [.github/copilot-instructions.md](.github/copilot-instructions.md) for proje
 ## License
 
 This project is provided as-is for educational and development purposes.
+
