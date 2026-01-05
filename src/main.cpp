@@ -139,6 +139,85 @@ void demoMonteCarloSimulation() {
     std::cout << "  Worst Case (5th):  ~" << (roiResult.mean - 1.96 * roiResult.stddev) * 100 << "%\n";
 }
 
+void demoConvergenceTracking() {
+    std::cout << "PHASE 3.3: Convergence Tracking & Introspection\n";
+    std::cout << std::string(70, '-') << "\n\n";
+    
+    std::cout << "Tracking how statistics converge as samples accumulate...\n\n";
+    
+    // Setup simulation
+    VariableRegistry registry;
+    registry.registerVariable("demand", std::make_shared<NormalDistribution>(1000.0, 200.0));
+    registry.registerVariable("price", std::make_shared<UniformDistribution>(10.0, 20.0));
+    
+    auto demand = std::make_shared<Variable>("demand");
+    auto price = std::make_shared<Variable>("price");
+    auto revenue = std::make_shared<BinaryOp>(demand, price, BinaryOperator::Multiply);
+    
+    std::cout << "Scenario: Revenue Estimation\n";
+    std::cout << "  demand ~ N(1000, 200)  [units]\n";
+    std::cout << "  price ~ U(10, 20)      [dollars per unit]\n";
+    std::cout << "  revenue = demand * price\n\n";
+    
+    // Run with convergence tracking using smart intervals
+    MonteCarloEvaluator evaluator(10000, 42);
+    auto result = evaluator.evaluate(revenue, registry, -1);  // -1 for smart intervals
+    
+    std::cout << "Convergence History (" << result.convergenceHistory.size() << " checkpoints):\n";
+    std::cout << std::string(70, '-') << "\n";
+    std::cout << std::setw(10) << "Samples" 
+              << std::setw(15) << "Mean ($)" 
+              << std::setw(15) << "Std Dev ($)"
+              << std::setw(15) << "Std Error"
+              << "\n";
+    std::cout << std::string(70, '-') << "\n";
+    
+    std::cout << std::fixed << std::setprecision(2);
+    for (const auto& point : result.convergenceHistory) {
+        double se = point.stddev / std::sqrt(point.validCount);
+        std::cout << std::setw(10) << point.sampleCount
+                  << std::setw(15) << point.mean
+                  << std::setw(15) << point.stddev
+                  << std::setw(15) << se
+                  << "\n";
+    }
+    
+    // Convergence analysis
+    std::cout << "\n\nConvergence Analysis:\n";
+    if (result.convergenceHistory.size() >= 2) {
+        auto& first = result.convergenceHistory.front();
+        auto& last = result.convergenceHistory.back();
+        
+        double meanChange = std::abs(last.mean - first.mean);
+        double seFirst = first.stddev / std::sqrt(first.validCount);
+        double seLast = last.stddev / std::sqrt(last.validCount);
+        double seReduction = ((seFirst - seLast) / seFirst) * 100;
+        
+        std::cout << "  Initial estimate (n=" << first.sampleCount << "): "
+                  << "$" << first.mean << " ± $" << (1.96 * seFirst) << " (95% CI)\n";
+        std::cout << "  Final estimate (n=" << last.sampleCount << "):   "
+                  << "$" << last.mean << " ± $" << (1.96 * seLast) << " (95% CI)\n";
+        std::cout << "  Standard error reduced by: " << seReduction << "%\n";
+        
+        // Check convergence
+        double meanChangePercent = (meanChange / last.mean) * 100;
+        std::cout << "\n  Mean changed by $" << meanChange 
+                  << " (" << std::setprecision(3) << meanChangePercent << "%)\n";
+        
+        if (meanChangePercent < 1.0) {
+            std::cout << "  ✓ Simulation converged (< 1% change from initial)\n";
+        } else {
+            std::cout << "  ⚠ Simulation still converging (consider more samples)\n";
+        }
+    }
+    
+    // Show final results
+    std::cout << "\n\nFinal Results:\n";
+    std::cout << "  Mean Revenue:      $" << result.mean << "\n";
+    std::cout << "  Standard Deviation: $" << result.stddev << "\n";
+    std::cout << "  Range:             $" << result.min << " - $" << result.max << "\n";
+}
+
 int main() {
     std::cout << "\n";
     std::cout << "╔════════════════════════════════════════════════════════════════════╗\n";
@@ -155,11 +234,15 @@ int main() {
     demoMonteCarloSimulation();
     
     printSeparator();
+    demoConvergenceTracking();
+    
+    printSeparator();
     std::cout << "✅ All Phases Demonstrated Successfully!\n";
     std::cout << "   - Phase 1: Expression Trees (14 tests passing)\n";
     std::cout << "   - Phase 2: Distributions & Registry (17 tests passing)\n";
-    std::cout << "   - Phase 3: Monte Carlo Engine (15 tests passing)\n";
-    std::cout << "   Total: 50 tests passing\n\n";
+    std::cout << "   - Phase 3: Monte Carlo Engine (23 tests passing)\n";
+    std::cout << "     * Includes convergence tracking & introspection\n";
+    std::cout << "   Total: 58 tests passing\n\n";
     std::cout << "Next: Phase 4 - Expression Builder API with operator overloading\n\n";
     
     return 0;

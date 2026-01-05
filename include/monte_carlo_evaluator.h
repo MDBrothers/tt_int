@@ -11,6 +11,18 @@
 namespace tt_int {
 
 /**
+ * @brief Statistics at a specific point during simulation
+ * 
+ * Used to track convergence of statistics as more samples are collected.
+ */
+struct ConvergencePoint {
+    size_t sampleCount;        ///< Number of samples at this point
+    double mean;               ///< Running mean at this point
+    double stddev;             ///< Running standard deviation at this point
+    size_t validCount;         ///< Valid (non-NaN) samples at this point
+};
+
+/**
  * @brief Result of a Monte Carlo simulation
  * 
  * Contains the raw samples and computed statistics from the simulation.
@@ -23,6 +35,7 @@ struct SimulationResult {
     double max;                          ///< Maximum of valid samples
     size_t validSampleCount;            ///< Number of non-NaN samples
     size_t totalSampleCount;            ///< Total number of samples
+    std::vector<ConvergencePoint> convergenceHistory;  ///< Statistics at intervals
 };
 
 /**
@@ -47,10 +60,23 @@ public:
      * @brief Evaluate an expression using Monte Carlo simulation
      * @param expr Expression to evaluate
      * @param registry Variable registry containing distributions
+     * @param convergenceInterval Interval for recording convergence statistics
+     *        - 0 (default): No convergence tracking
+     *        - Positive N: Record every N samples
+     *        - Negative: Use smart intervals (logarithmic/percentage-based)
      * @return Simulation results with statistics
      */
     SimulationResult evaluate(std::shared_ptr<Expression> expr,
-                             const VariableRegistry& registry);
+                             const VariableRegistry& registry,
+                             int convergenceInterval = 0);
+    
+private:
+    /**
+     * @brief Compute smart convergence intervals based on total samples
+     * @param totalSamples Total number of samples in simulation
+     * @return Vector of sample counts at which to record statistics
+     */
+    std::vector<size_t> computeSmartIntervals(size_t totalSamples) const;
 };
 
 } // namespace tt_int

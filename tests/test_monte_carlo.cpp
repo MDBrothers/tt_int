@@ -299,3 +299,199 @@ TEST(MonteCarloTest, ComplexExpression) {
     EXPECT_GT(result.mean, 8.0);
     EXPECT_LT(result.mean, 14.0);
 }
+
+// Test convergence tracking - backward compatibility (default no tracking)
+TEST(MonteCarloTest, ConvergenceBackwardCompatible) {
+    VariableRegistry registry;
+    registry.registerVariable("x", std::make_shared<NormalDistribution>(0.0, 1.0));
+    
+    auto x = std::make_shared<Variable>("x");
+    MonteCarloEvaluator evaluator(1000, 42);
+    
+    // Default convergenceInterval = 0, should not track
+    auto result = evaluator.evaluate(x, registry);
+    
+    EXPECT_TRUE(result.convergenceHistory.empty());
+    EXPECT_EQ(result.samples.size(), 1000);
+}
+
+// Test convergence tracking with fixed interval
+TEST(MonteCarloTest, ConvergenceFixedInterval) {
+    VariableRegistry registry;
+    registry.registerVariable("x", std::make_shared<NormalDistribution>(100.0, 15.0));
+    
+    auto x = std::make_shared<Variable>("x");
+    MonteCarloEvaluator evaluator(1000, 42);
+    
+    // Record every 200 samples
+    auto result = evaluator.evaluate(x, registry, 200);
+    
+    EXPECT_FALSE(result.convergenceHistory.empty());
+    EXPECT_EQ(result.convergenceHistory.size(), 5);  // 200, 400, 600, 800, 1000
+    
+    // Check first point
+    EXPECT_EQ(result.convergenceHistory[0].sampleCount, 200);
+    EXPECT_GT(result.convergenceHistory[0].validCount, 0);
+    EXPECT_FALSE(std::isnan(result.convergenceHistory[0].mean));
+    
+    // Check last point matches final statistics
+    const auto& lastPoint = result.convergenceHistory.back();
+    EXPECT_EQ(lastPoint.sampleCount, 1000);
+    EXPECT_EQ(lastPoint.validCount, result.validSampleCount);
+    EXPECT_DOUBLE_EQ(lastPoint.mean, result.mean);
+    EXPECT_DOUBLE_EQ(lastPoint.stddev, result.stddev);
+}
+
+// Test convergence tracking with smart intervals
+TEST(MonteCarloTest, ConvergenceSmartIntervals) {
+    VariableRegistry registry;
+    registry.registerVariable("x", std::make_shared<NormalDistribution>(50.0, 10.0));
+    
+    auto x = std::make_shared<Variable>("x");
+    MonteCarloEvaluator evaluator(10000, 42);
+    
+    // Use smart intervals (convergenceInterval < 0)
+    auto result = evaluator.evaluate(x, registry, -1);
+    
+    EXPECT_FALSE(result.convergenceHistory.empty());
+    EXPECT_GT(result.convergenceHistory.size(), 5);  // Should have multiple points
+    
+    // Check that sample counts are increasing
+    for (size_t i = 1; i < result.convergenceHistory.size(); ++i) {
+        EXPECT_GT(result.convergenceHistory[i].sampleCount, 
+                  result.convergenceHistory[i-1].sampleCount);
+    }
+    
+    // Last point should be at total samples
+    EXPECT_EQ(result.convergenceHistory.back().sampleCount, 10000);
+}
+
+// Test convergence shows decreasing standard error
+TEST(MonteCarloTest, ConvergenceStandardErrorDecreases) {
+    VariableRegistry registry;
+    registry.registerVariable("x", std::make_shared<NormalDistribution>(100.0, 15.0));
+    
+    auto x = std::make_shared<Variable>("x");
+    MonteCarloEvaluator evaluator(5000, 42);
+    
+    auto result = evaluator.evaluate(x, registry, 1000);
+    
+    // Standard error should generally decrease with more samples
+    // SE = stddev / sqrt(n), so for similar stddev, larger n gives smaller SE
+    EXPECT_GT(result.convergenceHistory.size(), 2);
+    
+    // Calculate standard errors
+    std::vector<double> standardErrors;
+    for (const auto& point : result.convergenceHistory) {
+        if (point.validCount > 0) {
+            double se = point.stddev / std::sqrt(point.validCount);
+            standardErrors.push_back(se);
+        }
+    }
+    
+    // Last SE should generally be smaller than first SE
+    EXPECT_GT(standardErrors.size(), 2);
+    EXPECT_LT(standardErrors.back(), standardErrors[0]);
+}
+
+// Test convergence with deterministic seeding
+TEST(MonteCarloTest, ConvergenceDeterministic) {
+    VariableRegistry registry;
+    registry.registerVariable("x", std::make_shared<NormalDistribution>(0.0, 1.0));
+    
+    auto x = std::make_shared<Variable>("x");
+    
+    MonteCarloEvaluator eval1(1000, 42);
+    auto result1 = eval1.evaluate(x, registry, 250);
+    
+    MonteCarloEvaluator eval2(1000, 42);
+    auto result2 = eval2.evaluate(x, registry, 250);
+    
+    EXPECT_EQ(result1.convergenceHistory.size(), result2.convergenceHistory.size());
+    
+    for (size_t i = 0; i < result1.convergenceHistory.size(); ++i) {
+        EXPECT_EQ(result1.convergenceHistory[i].sampleCount, 
+                  result2.convergenceHistory[i].sampleCount);
+        EXPECT_DOUBLE_EQ(result1.convergenceHistory[i].mean, 
+                        result2.convergenceHistory[i].mean);
+        EXPECT_DOUBLE_EQ(result1.convergenceHistory[i].stddev, 
+                        result2.convergenceHistory[i].stddev);
+    }
+}
+
+// Test convergence with NaN values (divide by zero)
+TEST(MonteCarloTest, ConvergenceWithNaN) {
+    VariableRegistry registry;
+    registry.registerVariable("x", std::make_shared<NormalDistribution>(5.0, 1.0));
+    
+    auto x = std::make_shared<Variable>("x");
+    auto zero = std::make_shared<Constant>(0.0);
+    auto expr = std::make_shared<BinaryOp>(x, zero, BinaryOperator::Divide);
+    
+    MonteCarloEvaluator evaluator(500, 42);
+    auto result = evaluator.evaluate(expr, registry, 100);
+    
+    // All samples are NaN, so validCount should be 0 at all points
+    for (const auto& point : result.convergenceHistory) {
+        EXPECT_EQ(point.validCount, 0);
+        EXPECT_TRUE(std::isnan(point.mean));
+        EXPECT_TRUE(std::isnan(point.stddev));
+    }
+}
+
+// Test that convergence intervals include the final sample count
+TEST(MonteCarloTest, ConvergenceIncludesFinalCount) {
+    VariableRegistry registry;
+    registry.registerVariable("x", std::make_shared<UniformDistribution>(0.0, 1.0));
+    
+    auto x = std::make_shared<Variable>("x");
+    
+    // Test with fixed interval
+    MonteCarloEvaluator eval1(1000, 42);
+    auto result1 = eval1.evaluate(x, registry, 300);
+    EXPECT_EQ(result1.convergenceHistory.back().sampleCount, 1000);
+    
+    // Test with smart intervals
+    MonteCarloEvaluator eval2(1000, 42);
+    auto result2 = eval2.evaluate(x, registry, -1);
+    EXPECT_EQ(result2.convergenceHistory.back().sampleCount, 1000);
+}
+
+// Test convergence mean stabilization
+TEST(MonteCarloTest, ConvergenceMeanStabilizes) {
+    VariableRegistry registry;
+    registry.registerVariable("x", std::make_shared<NormalDistribution>(100.0, 15.0));
+    
+    auto x = std::make_shared<Variable>("x");
+    MonteCarloEvaluator evaluator(10000, 42);
+    
+    auto result = evaluator.evaluate(x, registry, -1);
+    
+    // Expected mean is 100.0
+    // As samples increase, mean should stabilize around true value
+    EXPECT_GT(result.convergenceHistory.size(), 3);
+    
+    // Final mean should be close to true mean
+    EXPECT_NEAR(result.convergenceHistory.back().mean, 100.0, 1.0);
+    
+    // Check that later estimates are generally more stable
+    // Compare variance of estimates in first half vs second half
+    size_t midpoint = result.convergenceHistory.size() / 2;
+    
+    double firstHalfVar = 0.0;
+    for (size_t i = 0; i < midpoint; ++i) {
+        double diff = result.convergenceHistory[i].mean - 100.0;
+        firstHalfVar += diff * diff;
+    }
+    firstHalfVar /= midpoint;
+    
+    double secondHalfVar = 0.0;
+    for (size_t i = midpoint; i < result.convergenceHistory.size(); ++i) {
+        double diff = result.convergenceHistory[i].mean - 100.0;
+        secondHalfVar += diff * diff;
+    }
+    secondHalfVar /= (result.convergenceHistory.size() - midpoint);
+    
+    // Later estimates should be more stable (lower variance from true mean)
+    EXPECT_LT(secondHalfVar, firstHalfVar);
+}
