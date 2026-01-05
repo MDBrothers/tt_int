@@ -19,6 +19,7 @@ add_library(hello_lib
     src/distribution.cpp
     src/variable_registry.cpp
     src/monte_carlo_evaluator.cpp
+    src/expression_builder.cpp
 )
 
 # Main executable
@@ -48,6 +49,8 @@ add_executable(tests
     tests/test_hello.cpp
     tests/test_distribution.cpp
     tests/test_monte_carlo.cpp
+    tests/test_builder.cpp
+    tests/test_integration.cpp
 )
 
 target_link_libraries(tests
