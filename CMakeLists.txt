@@ -29,6 +29,13 @@ add_executable(tt_int
 
 target_link_libraries(tt_int hello_lib)
 
+# Example executables
+add_executable(calculator_demo
+    examples/calculator_demo.cpp
+)
+
+target_link_libraries(calculator_demo hello_lib)
+
 # Enable testing
 enable_testing()
 
