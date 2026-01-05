@@ -2,22 +2,23 @@
 
 ## Progress Status
 
-**Current Phase**: Phase 3 - Monte Carlo Evaluation (Simulation Engine)
+**Current Phase**: Phase 4 - Expression Builder API (Ergonomic Interface)
 
 **Completed Phases**:
 
 - ✅ **Phase 1**: Core Expression Tree (14 tests passing)
 - ✅ **Phase 2**: Distribution System (17 tests passing)
+- ✅ **Phase 3**: Monte Carlo Evaluator (15 tests passing)
 
-**Total Tests**: 35 passing (14 expression + 4 hello + 17 distribution)
+**Total Tests**: 50 passing (14 expression + 4 hello + 17 distribution + 15 monte carlo)
 
 **Implementation Status**:
 
 - ✅ Expression tree with 4 arithmetic operations
 - ✅ Normal and Uniform distributions
 - ✅ Variable registry for stochastic variables
-- ⏳ Monte Carlo evaluator (next)
-- ⏳ Expression builder API (future)
+- ✅ Monte Carlo evaluator with Welford's algorithm
+- ⏳ Expression builder API (next)
 - ⏳ Project integration (future)
 
 ---
@@ -329,7 +330,7 @@ auto samples = registry.sampleAll(rng); // {{"x", 0.234}, {"y", -0.567}}
 
 ---
 
-## Phase 3: Monte Carlo Evaluation (Simulation Engine)
+## Phase 3: Monte Carlo Evaluation (Simulation Engine) ✅ COMPLETE
 
 ### Objective
 
@@ -337,7 +338,7 @@ Combine expression trees with distributions for Monte Carlo simulation.
 
 ### Tasks
 
-#### 3.1 Build Monte Carlo Evaluator
+#### 3.1 Build Monte Carlo Evaluator ✅
 
 **Files**: `include/monte_carlo_evaluator.h`, `src/monte_carlo_evaluator.cpp`
 
@@ -414,7 +415,7 @@ SimulationResult evaluate(expr, registry) {
 }
 ```
 
-#### 3.2 Test Simulation Accuracy
+#### 3.2 Test Simulation Accuracy ✅
 
 **Files**: `tests/test_monte_carlo.cpp`
 
@@ -943,13 +944,15 @@ tests/
 - ✅ All tests pass with deterministic seeding (17 distribution tests)
 - ✅ Total: 35 tests passing (18 from Phase 1 + 17 from Phase 2)
 
-### Phase 3 Complete When
+### Phase 3 Complete When ✅
 
 - ✅ Monte Carlo evaluation produces correct statistics
 - ✅ Results match known analytical solutions
 - ✅ NaN handling works correctly
 - ✅ Convergence improves with more samples
-- ✅ All tests pass
+- ✅ All tests pass (15 Monte Carlo tests)
+- ✅ Welford's algorithm provides numerical stability
+- ✅ Optional seeding enables reproducibility
 
 ### Phase 4 Complete When
 
